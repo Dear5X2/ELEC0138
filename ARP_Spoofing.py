@@ -28,7 +28,7 @@ def sendPacket(targetIP):
 
 
 if __name__ == '__main__':
-    targetIP = "192.168.137.254"
+    targetIP = "192.168.137.240"
     while True:
         sendPacket(targetIP)
         time.sleep(0.5)
