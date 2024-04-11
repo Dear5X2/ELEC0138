@@ -5,7 +5,7 @@ def detect_syn_flooding(pkt_count_threshold, time_interval):
     # Start capturing
     interface = "WLAN"
     filter_str = f"src host {get_if_addr(interface)} and tcp and ip"
-    packets = sniff(iface=interface,filter=filter_str,timeout=time_interval,)
+    packets = sniff(iface=interface,filter=filter_str,timeout=time_interval)
 
     # Count the number of SYN requests captured
     syn_packets = [pkt for pkt in packets if pkt.haslayer(TCP)]  # SYN flag is set
@@ -19,7 +19,7 @@ def detect_syn_flooding(pkt_count_threshold, time_interval):
 
 
 if __name__ == "__main__":
-    PACKET_COUNT_THRESHOLD = 1000  # SYN request threhold
+    PACKET_COUNT_THRESHOLD = 800  # SYN request threhold
     TIME_INTERVAL = 1  # tiem interval (seconds)
 
     while True:
