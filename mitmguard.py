@@ -1,66 +1,61 @@
-import os
+import scapy.all as scapy
 import time
-from datetime import datetime
+import subprocess
+import os
+import subprocess
+import re
 
-class NetworkGuard:
-    def __init__(self):
-        self.gateway_mac_original = None
-        self.gateway_ip = None
-        self.list_of_macs = []
-        self.network_connected = False
+def get_gateway_mac(ip):
+    # Run the arp command and capture its output
+    result = subprocess.run(['arp', '-a', ip], capture_output=True, text=True)
+    
+    if result.returncode == 0:  # Check if command was successful
+        # Use regular expression to search for the MAC address in the output
+        match = re.search(r"(\w\w-\w\w-\w\w-\w\w-\w\w-\w\w)", result.stdout)
+        if match:
+            return match.group(1)  # Return the MAC address
+        else:
+            return "MAC address not found"
+    else:
+        return "ARP command failed"
 
-    def fetch_initial_gateway_details(self):
-        """获取并设置初始网关的MAC和IP地址。"""
-        arp_output = os.popen('arp -a').read()
-        self.network_connected = len(arp_output.splitlines()) >= 10
-        for line in arp_output.splitlines():
-            if line and "Interface" not in line and "Internet" not in line:
-                self.gateway_mac_original = line.split()[1]
-                self.gateway_ip = line.split()[0]
-                break
-
-    def refresh_mac_list(self):
-        """刷新网络上的MAC地址列表。"""
-        self.list_of_macs = [
-            line.split()[1] for line in os.popen('arp -a').read().splitlines()
-            if line and "Interface" not in line and "Internet" not in line
-        ]
-
-    def monitor_network_for_intrusion(self):
-        """持续监控网络寻找入侵迹象。"""
+def detect_arp_spoofing(gateway_ip,interface):
+    print("Starting ARP spoofing detection...")
+    legitimate_mac = get_gateway_mac(gateway_ip)
+    if not legitimate_mac:
+        print("Failed to obtain legitimate MAC address. Exiting...")
+        return
+    
+    print(f"Legitimate MAC address of Gateway {gateway_ip} is {legitimate_mac}")
+    
+    try:
         while True:
-            time.sleep(2)
-            if not self.network_connected:
-                print("网络连接丢失，尝试重连...")
-                self.attempt_reconnection()
-            else:
-                print("网络监控中...")
-                self.refresh_mac_list()
-                if self.gateway_mac_original not in self.list_of_macs:
-                    print("可能发现ARP攻击！")
-                    self.log_intrusion_attempt()
-                    self.disconnect_from_network()
-                else:
-                    self.refresh_mac_list()
+            current_mac = get_gateway_mac(gateway_ip)
+            if current_mac != legitimate_mac:
+                print(f"ARP spoofing detected! Expected {legitimate_mac}, but found {current_mac}")
+                disable_network_interface(interface,enable=False)
+                break
+            time.sleep(10)  # Check every 10 seconds
+    except KeyboardInterrupt:
+        print("Stopping ARP spoofing detection.")
 
-    def attempt_reconnection(self):
-        """尝试重新建立网络连接。"""
-        self.fetch_initial_gateway_details()
-        if self.network_connected:
-            print("网络重新连接成功。")
+def disable_network_interface(interface,enable=False):
+    action = 'enable' if enable else 'disable'
+    command = ['netsh', 'interface', 'set', 'interface', 'name='+interface, action]
+    try:
+        result = subprocess.run(command, capture_output=True, text=True)
+        if result.returncode == 0:
+            print(f'network has been {action}d successfully for preventing the arp spoofing.')
+        else:
+            print(f'Failed to {action} Wi-Fi. Error: {result.stderr}')
+    except Exception as e:
+        print(f'An error occurred: {e}')
 
-    def disconnect_from_network(self):
-        """从网络断开连接。"""
-        os.system("netsh wlan disconnect")
-        print("为了安全，网络已断开连接。")
 
-    def log_intrusion_attempt(self):
-        """记录入侵尝试到日志文件。"""
-        with open("intrusion_logs.txt", "a") as log_file:
-            log_file.write(f"异常ARP表：\n{os.popen('arp -a').read()}\n检测时间：{datetime.now()}\n")
+
 
 if __name__ == "__main__":
-    protector = NetworkGuard()
-    protector.fetch_initial_gateway_details()
-    protector.refresh_mac_list()
-    protector.monitor_network_for_intrusion()
+    GATEWAY_IP = '192.168.137.1'  # Gateway IP address
+    interface = 'WLAN'  # Name of the interface as seen in 'Control Panel\Network and Internet\Network Connections'
+    
+    detect_arp_spoofing(GATEWAY_IP,interface)
